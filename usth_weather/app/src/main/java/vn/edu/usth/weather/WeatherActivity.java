@@ -1,23 +1,25 @@
 package vn.edu.usth.weather;
 
+import android.Manifest;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.os.Environment;
 import android.util.Log;
-
-import androidx.activity.EdgeToEdge;
-import androidx.annotation.NonNull;
+import android.media.MediaPlayer;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
-import androidx.fragment.app.FragmentManager;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import androidx.viewpager.widget.ViewPager;
-import androidx.viewpager2.adapter.FragmentStateAdapter;
-import androidx.viewpager2.widget.ViewPager2;
-
 import com.google.android.material.tabs.TabLayout;
-import com.google.android.material.tabs.TabLayoutMediator;
 
-import vn.edu.usth.weather.viewpager.CustomPagerAdapter;
+import java.io.File;
+import java.io.IOException;
+
+public class WeatherActivity extends AppCompatActivity {
+
+private static final int PERMISSION_REQUEST_CODE = 1;
+    MediaPlayer mediaPlayer;
+
 
 public class WeatherActivity extends AppCompatActivity {
 
@@ -28,57 +30,75 @@ public class WeatherActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        EdgeToEdge.enable(this);
-        setContentView(R.layout.weather_activity_main);
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
-            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
-            return insets;
-        });
+        setContentView(R.layout.activity_weather);
 
-        // set view pager
-        FragmentManager fm = getSupportFragmentManager();
-        CustomPagerAdapter pagerAdapter = new CustomPagerAdapter(fm, getLifecycle());
-        viewPager = findViewById(R.id.viewpager);
-        viewPager.setAdapter(pagerAdapter);
-//        viewPager.setCurrentItem(0);
+        ViewPager viewPager = findViewById(R.id.viewpager);
+        HomeFragmentAdapter adapter = new HomeFragmentAdapter(getSupportFragmentManager());
+        viewPager.setAdapter(adapter);
 
-        // tab layout
-        tabLayout = findViewById(R.id.tab_layout);
-        tabLayout.addTab(tabLayout.newTab().setText("Hanoi, Viet Nam"));
-        tabLayout.addTab(tabLayout.newTab().setText("Paris, France"));
+        TabLayout tabLayout = findViewById(R.id.tabLayout);
+        tabLayout.setupWithViewPager(viewPager);
 
-        // connecting tab layout to adapter
-        tabLayout.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
-            @Override
-            public void onTabSelected(TabLayout.Tab tab) {
-                viewPager.setCurrentItem(tab.getPosition());
+        // Kiểm tra quyền truy cập bộ nhớ ngoài và phát audio
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
+                != PackageManager.PERMISSION_GRANTED) {
+            // Yêu cầu quyền nếu chưa được cấp
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, PERMISSION_REQUEST_CODE);
+        } else {
+            // Nếu đã có quyền, phát file MP3 từ bộ nhớ ngoài
+            playAudioFromExternalStorage();
+        }
+    }
+
+    // Khi người dùng đã chấp nhận hoặc từ chối yêu cầu quyền
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == PERMISSION_REQUEST_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // Phát file MP3 nếu người dùng đã cấp quyền
+                playAudioFromExternalStorage();
+            } else {
+                Log.e(TAG, "Permission Denied!");
             }
-            @Override
-            public void onTabUnselected(TabLayout.Tab tab) {
-            }
+        }
+    }
 
-            @Override
-            public void onTabReselected(TabLayout.Tab tab) {
+    // Phương thức phát file MP3 từ bộ nhớ ngoài
+    private void playAudioFromExternalStorage() {
+        // Tên file trong bộ nhớ ngoài (bạn có thể thay đổi tên file tùy theo file bạn có)
+        String fileName = "your_audio_file.mp3";  // Đảm bảo file này có trên bộ nhớ ngoài
+        File externalStorage = Environment.getExternalStorageDirectory();
+        File audioFile = new File(externalStorage, fileName);
+        if (audioFile.exists()) {
+            mediaPlayer = new MediaPlayer();
+            try {
+                // Thiết lập file MP3 từ bộ nhớ ngoài làm nguồn dữ liệu
+                mediaPlayer.setDataSource(audioFile.getAbsolutePath());
+                mediaPlayer.prepare();
+                mediaPlayer.start();
+                Log.i(TAG, "Đang phát file MP3 từ bộ nhớ ngoài: " + audioFile.getAbsolutePath());
+            } catch (IOException e) {
+                e.printStackTrace();
+                Log.e(TAG, "Không thể phát file MP3!");
             }
-        });
+        } else {
+            Log.e(TAG, "File không tồn tại: " + audioFile.getAbsolutePath());
+        }
+    }
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        // Giải phóng tài nguyên MediaPlayer khi Activity bị hủy
+        if (mediaPlayer != null) {
+            mediaPlayer.release();
+            mediaPlayer = null;
+        }
+    }
 
-        viewPager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
-            @Override
-            public void onPageSelected(int position) {
-                tabLayout.selectTab(tabLayout.getTabAt(position));
-            }
-        });
-        // set linear layout
-//        LinearLayout linearLayout = new LinearLayout(getBaseContext());
-//        View forecast_view = findViewById(R.id.forecast_fragment_container);
-//        linearLayout.addView(forecast_view);
-
-//        ForecastFragment forecastFragment = new ForecastFragment();
-//        getSupportFragmentManager().beginTransaction()
-//                .add(R.id.forecast_fragment_container, forecastFragment)
-//                .commit();
-//        setContentView(R.layout.background);
+       
+	   
     }
 
     @Override
